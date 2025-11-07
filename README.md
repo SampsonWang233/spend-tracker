@@ -5,8 +5,9 @@ A simple, mobile-friendly web application to track your personal monthly expense
 ## Features
 
 - 📱 Mobile-first responsive design
-- 📅 Monthly expense tracking
-- 🏷️ Category-based expense organization
+- 📅 Monthly expense tracking with quick month switching
+- 🧾 Two-page workflow: monthly summary + detailed ledger
+- 🏷️ Category-based expense organization and breakdown
 - 💾 Local data storage (no server required)
 - ✨ Clean and intuitive interface
 
@@ -78,12 +79,14 @@ Then open `http://localhost:8000` in your browser.
 
 ## Usage
 
-1. Open the app in your browser
-2. Navigate between months using the arrow buttons
-3. Add expenses with description, amount, and category
-4. View all expenses for the current month
-5. Delete expenses by clicking the × button
-6. Clear all expenses for a month using "Clear Month"
+1. Open `index.html` for the **Summary** view
+   - Switch months with the arrows or dropdowns
+   - Review totals, average per expense, top category, and recent items
+   - Tap **View Details** to jump into the ledger page
+2. Open `details.html` for the **Detail** view
+   - Add expenses with description, amount, category, and date
+   - Browse the full list of expenses for the selected month
+   - Delete individual expenses (× button) or clear the entire month
 
 ## Data Storage
 
@@ -95,7 +98,10 @@ All data is stored locally in your browser using localStorage. This means:
 
 ## Files
 
-- `index.html` - Main HTML structure
+- `index.html` - Summary dashboard
+- `details.html` - Expense management ledger
 - `styles.css` - Styling and responsive design
-- `app.js` - Application logic and data management
+- `tracker.js` - Shared data layer and state manager
+- `summary.js` - Summary page interactions
+- `details.js` - Detail page interactions
 
