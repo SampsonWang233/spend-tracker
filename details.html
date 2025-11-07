@@ -11,35 +11,16 @@
     <div class="container details-page">
         <header class="primary-header">
             <div class="header-row">
-                <a href="index.html" id="summaryLink" class="link-button">← Summary</a>
                 <h1>Expense Details</h1>
+                <nav class="tab-nav" aria-label="Page navigation">
+                    <a href="index.html" id="navSummary" class="tab-link">Summary</a>
+                    <a href="details.html" class="tab-link tab-active" aria-current="page">Breakdown</a>
+                </nav>
             </div>
             <p class="header-subtitle">Add, review, and manage each expense entry.</p>
         </header>
 
         <main class="details-layout">
-            <section class="month-selector-card">
-                <div class="section-header">
-                    <h2>Selected Month</h2>
-                    <div class="month-selector">
-                        <button id="prevMonth" class="nav-btn" aria-label="Previous month">←</button>
-                        <select id="monthSelect" class="month-select" aria-label="Select month"></select>
-                        <select id="yearSelect" class="year-select" aria-label="Select year"></select>
-                        <button id="nextMonth" class="nav-btn" aria-label="Next month">→</button>
-                    </div>
-                </div>
-                <div class="summary-grid">
-                    <div class="summary-card">
-                        <span class="label">Total Spent</span>
-                        <span id="totalSpent" class="value">$0.00</span>
-                    </div>
-                    <div class="summary-card">
-                        <span class="label">Expenses</span>
-                        <span id="expenseCount" class="value">0</span>
-                    </div>
-                </div>
-            </section>
-
             <section class="add-expense-section">
                 <div class="section-header">
                     <h2>Add Expense</h2>

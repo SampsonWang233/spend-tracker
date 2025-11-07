@@ -26,12 +26,6 @@ const CATEGORY_LABELS = {
 document.addEventListener('DOMContentLoaded', () => {
   const tracker = new window.ExpenseTracker();
 
-  const monthSelect = document.getElementById('monthSelect');
-  const yearSelect = document.getElementById('yearSelect');
-  const prevMonthBtn = document.getElementById('prevMonth');
-  const nextMonthBtn = document.getElementById('nextMonth');
-  const totalSpentEl = document.getElementById('totalSpent');
-  const expenseCountEl = document.getElementById('expenseCount');
   const expenseForm = document.getElementById('expenseForm');
   const descriptionInput = document.getElementById('expenseDescription');
   const amountInput = document.getElementById('expenseAmount');
@@ -39,25 +33,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const dateInput = document.getElementById('expenseDate');
   const expensesList = document.getElementById('expensesList');
   const clearMonthBtn = document.getElementById('clearMonth');
-  const summaryLink = document.getElementById('summaryLink');
-
-  populateMonthOptions(monthSelect);
-  populateYearOptions(yearSelect);
-
-  prevMonthBtn.addEventListener('click', () => tracker.incrementMonth(-1));
-  nextMonthBtn.addEventListener('click', () => tracker.incrementMonth(1));
-
-  monthSelect.addEventListener('change', () => {
-    const monthIndex = Number.parseInt(monthSelect.value, 10);
-    const year = Number.parseInt(yearSelect.value, 10);
-    tracker.setMonth(year, monthIndex);
-  });
-
-  yearSelect.addEventListener('change', () => {
-    const monthIndex = Number.parseInt(monthSelect.value, 10);
-    const year = Number.parseInt(yearSelect.value, 10);
-    tracker.setMonth(year, monthIndex);
-  });
+  const navSummary = document.getElementById('navSummary');
+  const navBreakdown = document.querySelector('.tab-nav .tab-active');
 
   expenseForm.addEventListener('submit', (event) => {
     event.preventDefault();
@@ -103,52 +80,15 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   tracker.subscribe((state) => {
-    const { currentDate, summary, expenses, monthKey } = state;
+    const { currentDate, expenses, monthKey } = state;
 
-    updateSelectors(currentDate);
-    updateSummaryCards(summary);
     renderExpenses(expenses);
     refreshDateInput();
-    updateSummaryNavigation(monthKey);
+    updateNavLinks(monthKey);
     updatePageTitle(currentDate);
   });
 
   applyInitialMonthFromQuery();
-
-  function populateMonthOptions(select) {
-    MONTHS.forEach((month, index) => {
-      const option = document.createElement('option');
-      option.value = index;
-      option.textContent = month;
-      select.appendChild(option);
-    });
-  }
-
-  function populateYearOptions(select) {
-    const currentYear = new Date().getFullYear();
-    for (let year = currentYear - 5; year <= currentYear + 5; year += 1) {
-      const option = document.createElement('option');
-      option.value = year;
-      option.textContent = year;
-      select.appendChild(option);
-    }
-  }
-
-  function updateSelectors(date) {
-    const month = date.getMonth();
-    const year = date.getFullYear();
-
-    ensureYearOption(year);
-
-    monthSelect.value = month;
-    yearSelect.value = year;
-  }
-
-  function updateSummaryCards(summary) {
-    const { totalSpent, expenseCount } = summary;
-    totalSpentEl.textContent = formatCurrency(totalSpent);
-    expenseCountEl.textContent = expenseCount;
-  }
 
   function renderExpenses(expenses = []) {
     if (!Array.isArray(expenses) || expenses.length === 0) {
@@ -235,23 +175,15 @@ document.addEventListener('DOMContentLoaded', () => {
     return div.innerHTML;
   }
 
-  function updateSummaryNavigation(monthKey) {
-    if (!summaryLink || !monthKey) return;
-    summaryLink.href = `index.html?month=${monthKey}`;
-  }
+  function updateNavLinks(monthKey) {
+    if (!monthKey) return;
 
-  function ensureYearOption(year) {
-    const exists = Array.from(yearSelect.options).some((option) => Number(option.value) === year);
-    if (!exists) {
-      const option = document.createElement('option');
-      option.value = year;
-      option.textContent = year;
-      yearSelect.appendChild(option);
+    if (navSummary) {
+      navSummary.href = `index.html?month=${monthKey}`;
+    }
 
-      const sorted = Array.from(yearSelect.options)
-        .sort((a, b) => Number(a.value) - Number(b.value));
-      yearSelect.innerHTML = '';
-      sorted.forEach((opt) => yearSelect.appendChild(opt));
+    if (navBreakdown) {
+      navBreakdown.href = `details.html?month=${monthKey}`;
     }
   }
 

@@ -12,7 +12,10 @@
         <header class="primary-header">
             <div class="header-row">
                 <h1>💰 My Spend Tracker</h1>
-                <a href="details.html" id="detailsLinkPrimary" class="btn btn-primary">View Details</a>
+                <nav class="tab-nav" aria-label="Page navigation">
+                    <a href="index.html" class="tab-link tab-active" aria-current="page">Summary</a>
+                    <a href="details.html" id="navBreakdown" class="tab-link">Breakdown</a>
+                </nav>
             </div>
             <p class="header-subtitle">Quick overview of your monthly spending at a glance.</p>
         </header>
@@ -22,10 +25,8 @@
                 <div class="section-header">
                     <h2>Current Month</h2>
                     <div class="month-selector">
-                        <button id="prevMonth" class="nav-btn" aria-label="Previous month">←</button>
                         <select id="monthSelect" class="month-select" aria-label="Select month"></select>
                         <select id="yearSelect" class="year-select" aria-label="Select year"></select>
-                        <button id="nextMonth" class="nav-btn" aria-label="Next month">→</button>
                     </div>
                 </div>
                 <div class="summary-grid">
@@ -57,15 +58,6 @@
                 </div>
             </section>
 
-            <section class="recent-section">
-                <div class="section-header">
-                    <h2>Recent Expenses</h2>
-                    <a href="details.html" id="detailsLinkSecondary" class="link-button">See all</a>
-                </div>
-                <div id="recentExpenses" class="recent-list">
-                    <p class="empty-state">No recent expenses to show.</p>
-                </div>
-            </section>
         </main>
     </div>
 

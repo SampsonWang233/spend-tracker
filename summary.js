@@ -28,22 +28,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const monthSelect = document.getElementById('monthSelect');
   const yearSelect = document.getElementById('yearSelect');
-  const prevMonthBtn = document.getElementById('prevMonth');
-  const nextMonthBtn = document.getElementById('nextMonth');
   const totalSpentEl = document.getElementById('totalSpent');
   const expenseCountEl = document.getElementById('expenseCount');
   const averageExpenseEl = document.getElementById('averageExpense');
   const topCategoryEl = document.getElementById('topCategory');
   const categoryList = document.getElementById('categoryList');
-  const recentList = document.getElementById('recentExpenses');
-  const detailsLinkPrimary = document.getElementById('detailsLinkPrimary');
-  const detailsLinkSecondary = document.getElementById('detailsLinkSecondary');
+  const navBreakdown = document.getElementById('navBreakdown');
 
   populateMonthOptions(monthSelect);
   populateYearOptions(yearSelect);
-
-  prevMonthBtn.addEventListener('click', () => tracker.incrementMonth(-1));
-  nextMonthBtn.addEventListener('click', () => tracker.incrementMonth(1));
 
   monthSelect.addEventListener('change', () => {
     const monthIndex = Number.parseInt(monthSelect.value, 10);
@@ -58,13 +51,12 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   tracker.subscribe((state) => {
-    const { currentDate, summary, expenses, monthKey } = state;
+    const { currentDate, summary, monthKey } = state;
 
     updateSelectors(currentDate);
     updateSummaryCards(summary);
     renderCategoryBreakdown(summary.categoryTotals);
-    renderRecentExpenses(expenses.slice(0, 5));
-    updateDetailLinks(monthKey);
+    updateBreakdownLink(monthKey);
   });
 
   applyInitialMonthFromQuery();
@@ -113,15 +105,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function updateDetailLinks(monthKey) {
-    if (!monthKey) return;
-    const url = `details.html?month=${monthKey}`;
-    if (detailsLinkPrimary) {
-      detailsLinkPrimary.href = url;
-    }
-    if (detailsLinkSecondary) {
-      detailsLinkSecondary.href = url;
-    }
+  function updateBreakdownLink(monthKey) {
+    if (!navBreakdown || !monthKey) return;
+    navBreakdown.href = `details.html?month=${monthKey}`;
   }
 
   function ensureYearOption(year) {
@@ -186,34 +172,6 @@ document.addEventListener('DOMContentLoaded', () => {
       .join('');
   }
 
-  function renderRecentExpenses(recentExpenses = []) {
-    if (!Array.isArray(recentExpenses) || recentExpenses.length === 0) {
-      recentList.innerHTML = '<p class="empty-state">No recent expenses to show.</p>';
-      return;
-    }
-
-    recentList.innerHTML = recentExpenses
-      .map((expense) => {
-        const date = new Date(expense.date);
-        const formattedDate = date.toLocaleDateString(undefined, {
-          month: 'short',
-          day: 'numeric',
-        });
-        const label = CATEGORY_LABELS[expense.category] || capitalize(expense.category);
-
-        return `
-          <div class="recent-item">
-            <div class="recent-info">
-              <span class="recent-description">${escapeHtml(expense.description)}</span>
-              <span class="recent-meta">${formattedDate} · ${label}</span>
-            </div>
-            <span class="recent-amount">${formatCurrency(expense.amount)}</span>
-          </div>
-        `;
-      })
-      .join('');
-  }
-
   function formatCurrency(value) {
     return `$${Number(value || 0).toFixed(2)}`;
   }
@@ -221,11 +179,5 @@ document.addEventListener('DOMContentLoaded', () => {
   function capitalize(text) {
     if (!text) return '';
     return text.charAt(0).toUpperCase() + text.slice(1);
-  }
-
-  function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
   }
 });
