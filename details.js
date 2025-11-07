@@ -36,7 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const navSummary = document.getElementById('navSummary');
   const navBreakdown = document.querySelector('.tab-nav .tab-active');
 
-  expenseForm.addEventListener('submit', (event) => {
+  expenseForm.addEventListener('submit', async (event) => {
     event.preventDefault();
 
     const description = descriptionInput.value;
@@ -46,7 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const selectedDate = dateValue ? new Date(dateValue) : tracker.getState().currentDate;
 
-    const success = tracker.addExpense({
+    const success = await tracker.addExpense({
       description,
       amount,
       category,
@@ -60,12 +60,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  clearMonthBtn.addEventListener('click', () => {
+  clearMonthBtn.addEventListener('click', async () => {
     const state = tracker.getState();
     const monthName = MONTHS[state.currentDate.getMonth()];
     const confirmation = window.confirm(`Clear all expenses for ${monthName} ${state.currentDate.getFullYear()}?`);
     if (confirmation) {
-      tracker.clearCurrentMonth();
+      await tracker.clearCurrentMonth();
     }
   });
 

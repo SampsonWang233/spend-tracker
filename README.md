@@ -90,18 +90,31 @@ Then open `http://localhost:8000` in your browser.
 
 ## Data Storage
 
-All data is stored locally in your browser using localStorage. This means:
+The app supports two storage options:
+
+### Option 1: Firebase Firestore (Recommended for Cloud Storage)
+- ✅ **Cloud Storage**: Data stored in Firebase cloud database
+- ✅ **Sync Across Devices**: Access your expenses from any device
+- ✅ **Automatic Backup**: Your data is automatically backed up
+- ✅ **Real-time Updates**: Changes sync instantly across devices
+- 📖 **Setup**: See [FIREBASE_SETUP.md](FIREBASE_SETUP.md) for detailed instructions
+
+### Option 2: localStorage (Default)
 - ✅ Your data stays private (never leaves your device)
 - ✅ Works offline
 - ⚠️ Data is tied to your browser/device
 - ⚠️ Clearing browser data will delete your expenses
+
+**Note**: If Firebase is not configured, the app automatically uses localStorage. No configuration needed for basic usage!
 
 ## Files
 
 - `index.html` - Summary dashboard
 - `details.html` - Expense management ledger
 - `styles.css` - Styling and responsive design
-- `tracker.js` - Shared data layer and state manager
+- `tracker.js` - Shared data layer and state manager (supports Firebase & localStorage)
 - `summary.js` - Summary page interactions
 - `details.js` - Detail page interactions
+- `firebase-config.js` - Firebase configuration (optional, for cloud storage)
+- `FIREBASE_SETUP.md` - Complete Firebase setup guide
 

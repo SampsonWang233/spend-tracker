@@ -2,14 +2,82 @@
 class ExpenseTracker {
   constructor() {
     this.currentDate = new Date();
-    this.expenses = this.loadExpenses();
+    this.expenses = {};
     this.listeners = [];
+    this.useFirebase = false;
+    this.db = null;
+    this.loading = false;
+    this.userId = this.getUserId();
+    
+    // Initialize storage
+    this.initStorage();
+  }
+
+  getUserId() {
+    // Generate or retrieve a unique user ID
+    let userId = localStorage.getItem('expenseTracker_userId');
+    if (!userId) {
+      userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      localStorage.setItem('expenseTracker_userId', userId);
+    }
+    return userId;
+  }
+
+  async initStorage() {
+    // Check if Firebase is available and configured
+    if (window.firebaseConfig) {
+      try {
+        await window.firebaseConfig.init();
+        this.db = window.firebaseConfig.getDb();
+        if (this.db && window.firebaseConfig.isInitialized()) {
+          this.useFirebase = true;
+          await this.loadExpenses();
+          this.setupFirebaseListener();
+          this.notify();
+          return;
+        }
+      } catch (error) {
+        console.warn('Firebase not available, using localStorage:', error);
+      }
+    }
+    
+    // Fallback to localStorage
+    this.useFirebase = false;
+    this.expenses = this.loadExpensesFromLocal();
+    this.notify();
+  }
+
+  setupFirebaseListener() {
+    if (!this.db) return;
+    
+    // Listen for real-time updates
+    this.db.collection('expenses')
+      .where('userId', '==', this.userId)
+      .onSnapshot((snapshot) => {
+        this.expenses = {};
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          const monthKey = this.getMonthKey(new Date(data.date));
+          if (!this.expenses[monthKey]) {
+            this.expenses[monthKey] = [];
+          }
+          this.expenses[monthKey].push({
+            id: doc.id,
+            ...data
+          });
+        });
+        this.notify();
+      }, (error) => {
+        console.error('Firebase listener error:', error);
+      });
   }
 
   subscribe(callback) {
     if (typeof callback === 'function') {
       this.listeners.push(callback);
-      callback(this.getState());
+      if (!this.loading) {
+        callback(this.getState());
+      }
     }
   }
 
@@ -18,7 +86,7 @@ class ExpenseTracker {
     this.listeners.forEach((listener) => listener(state));
   }
 
-  loadExpenses() {
+  loadExpensesFromLocal() {
     try {
       const stored = localStorage.getItem('expenses');
       const parsed = stored ? JSON.parse(stored) : {};
@@ -29,12 +97,52 @@ class ExpenseTracker {
     }
   }
 
-  saveExpenses() {
-    try {
-      localStorage.setItem('expenses', JSON.stringify(this.expenses));
-    } catch (error) {
-      console.warn('Unable to save expenses to localStorage', error);
+  async loadExpenses() {
+    if (!this.useFirebase || !this.db) {
+      this.expenses = this.loadExpensesFromLocal();
+      return;
     }
+
+    this.loading = true;
+    try {
+      const snapshot = await this.db.collection('expenses')
+        .where('userId', '==', this.userId)
+        .get();
+      
+      this.expenses = {};
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        const monthKey = this.getMonthKey(new Date(data.date));
+        if (!this.expenses[monthKey]) {
+          this.expenses[monthKey] = [];
+        }
+        this.expenses[monthKey].push({
+          id: doc.id,
+          ...data
+        });
+      });
+    } catch (error) {
+      console.error('Error loading expenses from Firebase:', error);
+      // Fallback to localStorage
+      this.expenses = this.loadExpensesFromLocal();
+    } finally {
+      this.loading = false;
+    }
+  }
+
+  async saveExpenses() {
+    if (!this.useFirebase || !this.db) {
+      // Save to localStorage
+      try {
+        localStorage.setItem('expenses', JSON.stringify(this.expenses));
+      } catch (error) {
+        console.warn('Unable to save expenses to localStorage', error);
+      }
+      return;
+    }
+
+    // Firebase saves are handled individually in add/delete/clear methods
+    // This method is kept for compatibility but doesn't need to do anything
   }
 
   getMonthKey(date) {
@@ -109,7 +217,7 @@ class ExpenseTracker {
       .sort((a, b) => new Date(b.year, b.month, 1) - new Date(a.year, a.month, 1));
   }
 
-  addExpense({ description, amount, category, date }) {
+  async addExpense({ description, amount, category, date }) {
     const trimmedDescription = (description || '').trim();
     const numericAmount = parseFloat(amount);
 
@@ -118,30 +226,75 @@ class ExpenseTracker {
     }
 
     const expenseDate = date ? new Date(date) : new Date(this.currentDate);
-    const expense = {
-      id: Date.now(),
+    const expenseData = {
       description: trimmedDescription,
       amount: numericAmount,
       category: category || 'other',
       date: expenseDate.toISOString(),
+      userId: this.userId
     };
 
-    const monthKey = this.getMonthKey(expenseDate);
-    if (!this.expenses[monthKey]) {
-      this.expenses[monthKey] = [];
+    // Add server timestamp only if using Firebase
+    if (this.useFirebase && this.db && typeof firebase !== 'undefined') {
+      expenseData.createdAt = firebase.firestore.FieldValue.serverTimestamp();
     }
 
-    this.expenses[monthKey].push(expense);
-    this.saveExpenses();
-    this.notify();
-    return true;
+    if (this.useFirebase && this.db) {
+      try {
+        const docRef = await this.db.collection('expenses').add(expenseData);
+        // The listener will update this.expenses automatically
+        return true;
+      } catch (error) {
+        console.error('Error adding expense to Firebase:', error);
+        // Fallback to localStorage
+        const expense = {
+          id: Date.now(),
+          ...expenseData
+        };
+        const monthKey = this.getMonthKey(expenseDate);
+        if (!this.expenses[monthKey]) {
+          this.expenses[monthKey] = [];
+        }
+        this.expenses[monthKey].push(expense);
+        this.saveExpenses();
+        this.notify();
+        return true;
+      }
+    } else {
+      // Use localStorage
+      const expense = {
+        id: Date.now(),
+        ...expenseData,
+        createdAt: new Date().toISOString()
+      };
+      const monthKey = this.getMonthKey(expenseDate);
+      if (!this.expenses[monthKey]) {
+        this.expenses[monthKey] = [];
+      }
+      this.expenses[monthKey].push(expense);
+      this.saveExpenses();
+      this.notify();
+      return true;
+    }
   }
 
-  deleteExpense(expenseId) {
+  async deleteExpense(expenseId) {
     const monthKey = this.getCurrentMonthKey();
     const existing = this.expenses[monthKey];
     if (!existing) return;
 
+    if (this.useFirebase && this.db) {
+      try {
+        await this.db.collection('expenses').doc(expenseId).delete();
+        // The listener will update this.expenses automatically
+        return;
+      } catch (error) {
+        console.error('Error deleting expense from Firebase:', error);
+        // Fallback to localStorage
+      }
+    }
+
+    // Use localStorage or fallback
     this.expenses[monthKey] = existing.filter((expense) => expense.id !== expenseId);
 
     if (this.expenses[monthKey].length === 0) {
@@ -152,13 +305,32 @@ class ExpenseTracker {
     this.notify();
   }
 
-  clearCurrentMonth() {
+  async clearCurrentMonth() {
     const monthKey = this.getCurrentMonthKey();
-    if (this.expenses[monthKey]) {
-      delete this.expenses[monthKey];
-      this.saveExpenses();
-      this.notify();
+    const existing = this.expenses[monthKey];
+    if (!existing) return;
+
+    if (this.useFirebase && this.db) {
+      try {
+        // Delete all expenses for this month from Firebase
+        const batch = this.db.batch();
+        existing.forEach((expense) => {
+          const docRef = this.db.collection('expenses').doc(expense.id);
+          batch.delete(docRef);
+        });
+        await batch.commit();
+        // The listener will update this.expenses automatically
+        return;
+      } catch (error) {
+        console.error('Error clearing month from Firebase:', error);
+        // Fallback to localStorage
+      }
     }
+
+    // Use localStorage or fallback
+    delete this.expenses[monthKey];
+    this.saveExpenses();
+    this.notify();
   }
 
   getState() {
