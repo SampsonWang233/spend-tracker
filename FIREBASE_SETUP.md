@@ -55,34 +55,90 @@ const firebaseConfig = {
 
 3. Save the file
 
-## Step 5: Set Up Firestore Security Rules (Important!)
+## Step 5: Add Authorized Domains (Required for GitHub Pages!)
+
+**This is critical for your app to work on GitHub Pages!**
+
+1. In Firebase Console, click the gear icon ⚙️ next to **"Project Overview"**
+2. Click **"Project settings"**
+3. Scroll down to **"Your apps"** section
+4. Click on your web app (the one you registered)
+5. Scroll down to **"Authorized domains"** section
+6. Click **"Add domain"**
+7. Add your GitHub Pages domain:
+   - If your site is `https://YOUR_USERNAME.github.io/YOUR_REPO_NAME/`, add: `YOUR_USERNAME.github.io`
+   - Or add: `github.io` (this allows all GitHub Pages subdomains)
+8. Click **Add**
+9. Also add `localhost` if you want to test locally (it should already be there)
+
+**Important**: Firebase only allows requests from authorized domains. Without this, your app will work locally but not on GitHub Pages!
+
+## Step 6: Set Up Firestore Security Rules (Important!)
 
 1. In Firebase Console, go to **Firestore Database** → **Rules**
-2. Replace the rules with this (allows read/write for your app):
+2. For personal use without authentication, use these rules (allows public read/write):
 
 ```javascript
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /expenses/{expenseId} {
-      allow read, write: if request.auth == null || 
-        resource.data.userId == request.auth.uid || 
-        request.resource.data.userId == request.auth.uid;
+      // Allow read and write for all users (personal use)
+      allow read, write: if true;
     }
   }
 }
 ```
 
-**Note**: For personal use without authentication, you can use test mode rules temporarily, but for production, consider adding authentication.
+**OR** for better security (recommended), use user-based rules:
+
+```javascript
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /expenses/{expenseId} {
+      // Allow if no auth required OR if userId matches
+      allow read, write: if request.auth == null || 
+        resource.data.userId == request.resource.data.userId;
+    }
+  }
+}
+```
+
+**Note**: The first rule (allow all) is simpler for personal use. The second is more secure but requires the userId to match.
 
 3. Click **Publish**
 
-## Step 6: Test Your Setup
+## Step 7: Deploy to GitHub Pages
 
-1. Open your app in a browser
-2. Add an expense
-3. Go to Firebase Console → Firestore Database
-4. You should see a new collection called `expenses` with your data
+1. Make sure `firebase-config.js` is committed to your repository:
+   ```bash
+   git add firebase-config.js
+   git commit -m "Add Firebase configuration"
+   git push
+   ```
+
+2. Verify your GitHub Pages site is deployed and accessible
+
+3. Test your deployed site:
+   - Open your GitHub Pages URL (e.g., `https://YOUR_USERNAME.github.io/YOUR_REPO_NAME/`)
+   - Open browser console (F12) to check for errors
+   - Try adding an expense
+   - Check Firebase Console → Firestore Database to see if data appears
+
+## Step 8: Test Your Setup
+
+1. **Test locally:**
+   - Open your app in a browser (file:// or localhost)
+   - Add an expense
+   - Go to Firebase Console → Firestore Database
+   - You should see a new collection called `expenses` with your data
+
+2. **Test on GitHub Pages:**
+   - Open your deployed site
+   - Check browser console for any errors
+   - Try adding an expense
+   - Verify data appears in Firestore
 
 ## Migration from localStorage
 
@@ -118,6 +174,21 @@ For personal expense tracking, this is more than enough!
 - Check browser console for errors
 - Verify your Firebase config is correct
 - Make sure Firestore is enabled in your Firebase project
+
+### Works locally but not on GitHub Pages
+- **Most common issue**: Make sure you've added your GitHub Pages domain to Firebase Authorized Domains (Step 5)
+- Check that `firebase-config.js` is committed and pushed to GitHub
+- Verify your GitHub Pages site is actually deployed
+- Check browser console on the deployed site for specific error messages
+- Common errors:
+  - `FirebaseError: [code=permission-denied]` → Check Firestore security rules
+  - `FirebaseError: [code=unavailable]` → Check authorized domains
+  - `CORS error` → Add domain to authorized domains
+
+### "Permission denied" on deployed site
+- Make sure Firestore security rules allow public access (if using test mode)
+- Check that rules are published (not just saved)
+- Try the simpler rule: `allow read, write: if true;` for testing
 
 ## Need Help?
 

@@ -3,12 +3,13 @@
 // Get them from: https://console.firebase.google.com/ → Project Settings → General → Your apps
 
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyC_o4t0pxzepBj5RUhuUUGw7rtQ2gHEiuc",
+  authDomain: "spend-9beb0.firebaseapp.com",
+  projectId: "spend-9beb0",
+  storageBucket: "spend-9beb0.firebasestorage.app",
+  messagingSenderId: "48858522985",
+  appId: "1:48858522985:web:53c0ee99f227d8a94a09f8",
+  measurementId: "G-MCQTGMBYHT"
 };
 
 // Initialize Firebase (will be done after SDK loads)
