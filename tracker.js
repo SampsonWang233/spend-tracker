@@ -27,33 +27,150 @@ class ExpenseTracker {
     // Check if Firebase is available and configured
     if (window.firebaseConfig) {
       try {
+        console.log('Attempting to initialize Firebase...');
         await window.firebaseConfig.init();
         this.db = window.firebaseConfig.getDb();
         if (this.db && window.firebaseConfig.isInitialized()) {
+          console.log('✅ Firebase initialized successfully');
           this.useFirebase = true;
+          
+          // Load expenses from Firebase
           await this.loadExpenses();
+          
+          // Migrate localStorage data to Firebase if it exists
+          await this.migrateLocalStorageToFirebase();
+          
           this.setupFirebaseListener();
           this.notify();
           return;
+        } else {
+          console.warn('⚠️ Firebase DB not available');
         }
       } catch (error) {
-        console.warn('Firebase not available, using localStorage:', error);
+        console.error('❌ Firebase initialization failed:', error);
+        console.warn('Falling back to localStorage');
       }
+    } else {
+      console.warn('⚠️ Firebase config not found, using localStorage');
     }
     
     // Fallback to localStorage
     this.useFirebase = false;
     this.expenses = this.loadExpensesFromLocal();
+    console.log('📦 Using localStorage for data storage');
     this.notify();
+  }
+
+  async migrateLocalStorageToFirebase() {
+    if (!this.useFirebase || !this.db) return;
+    
+    // Check if migration was already done
+    const migrationFlag = localStorage.getItem('expenseTracker_migratedToFirebase');
+    if (migrationFlag === 'true') {
+      console.log('Migration already completed, skipping');
+      return;
+    }
+    
+    try {
+      const localData = this.loadExpensesFromLocal();
+      const localKeys = Object.keys(localData);
+      
+      if (localKeys.length === 0) {
+        console.log('No localStorage data to migrate');
+        localStorage.setItem('expenseTracker_migratedToFirebase', 'true');
+        return;
+      }
+
+      console.log(`🔄 Found ${localKeys.length} months of data in localStorage, migrating to Firebase...`);
+      
+      let migratedCount = 0;
+      const batchLimit = 500; // Firestore batch limit
+      let batch = this.db.batch();
+      let currentBatch = 0;
+
+      for (const monthKey of localKeys) {
+        const expenses = localData[monthKey] || [];
+        
+        for (const expense of expenses) {
+          // Check if expense already exists in Firebase (simple check by date and description)
+          const existing = await this.db.collection('expenses')
+            .where('userId', '==', this.userId)
+            .where('date', '==', expense.date)
+            .where('description', '==', expense.description)
+            .limit(1)
+            .get();
+          
+          if (existing.empty) {
+            // Expense doesn't exist in Firebase, add it
+            const expenseData = {
+              description: expense.description,
+              amount: expense.amount,
+              category: expense.category || 'other',
+              date: expense.date,
+              userId: this.userId
+            };
+            
+            // Add timestamp if available
+            if (expense.createdAt && typeof firebase !== 'undefined') {
+              try {
+                expenseData.createdAt = firebase.firestore.Timestamp.fromDate(new Date(expense.createdAt));
+              } catch (e) {
+                expenseData.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+              }
+            } else if (typeof firebase !== 'undefined') {
+              expenseData.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+            }
+            
+            const docRef = this.db.collection('expenses').doc();
+            batch.set(docRef, expenseData);
+            migratedCount++;
+            currentBatch++;
+            
+            // Commit batch if we hit the limit and create new batch
+            if (currentBatch >= batchLimit) {
+              await batch.commit();
+              batch = this.db.batch();
+              currentBatch = 0;
+            }
+          }
+        }
+      }
+      
+      // Commit remaining items
+      if (currentBatch > 0) {
+        await batch.commit();
+      }
+      
+      if (migratedCount > 0) {
+        console.log(`✅ Migrated ${migratedCount} expenses to Firebase`);
+        // Mark migration as complete
+        localStorage.setItem('expenseTracker_migratedToFirebase', 'true');
+        // Clear localStorage after successful migration
+        localStorage.removeItem('expenses');
+        console.log('🗑️ Cleared localStorage data after migration');
+        // Reload expenses from Firebase to show migrated data
+        await this.loadExpenses();
+        this.notify();
+      } else {
+        console.log('✅ All data already in Firebase');
+        localStorage.setItem('expenseTracker_migratedToFirebase', 'true');
+      }
+    } catch (error) {
+      console.error('❌ Error migrating localStorage to Firebase:', error);
+      // Don't throw - allow app to continue with localStorage
+    }
   }
 
   setupFirebaseListener() {
     if (!this.db) return;
     
+    console.log('👂 Setting up Firebase real-time listener...');
+    
     // Listen for real-time updates
     this.db.collection('expenses')
       .where('userId', '==', this.userId)
       .onSnapshot((snapshot) => {
+        console.log(`📥 Received ${snapshot.size} expenses from Firebase`);
         this.expenses = {};
         snapshot.forEach((doc) => {
           const data = doc.data();
@@ -68,7 +185,14 @@ class ExpenseTracker {
         });
         this.notify();
       }, (error) => {
-        console.error('Firebase listener error:', error);
+        console.error('❌ Firebase listener error:', error);
+        // Fallback to localStorage on persistent errors
+        if (error.code === 'permission-denied') {
+          console.warn('⚠️ Permission denied, falling back to localStorage');
+          this.useFirebase = false;
+          this.expenses = this.loadExpensesFromLocal();
+          this.notify();
+        }
       });
   }
 
@@ -242,14 +366,21 @@ class ExpenseTracker {
     if (this.useFirebase && this.db) {
       try {
         const docRef = await this.db.collection('expenses').add(expenseData);
+        console.log('✅ Expense added to Firebase:', docRef.id);
         // The listener will update this.expenses automatically
         return true;
       } catch (error) {
-        console.error('Error adding expense to Firebase:', error);
+        console.error('❌ Error adding expense to Firebase:', error);
+        // If it's a permission error, switch to localStorage
+        if (error.code === 'permission-denied') {
+          console.warn('⚠️ Permission denied, switching to localStorage');
+          this.useFirebase = false;
+        }
         // Fallback to localStorage
         const expense = {
           id: Date.now(),
-          ...expenseData
+          ...expenseData,
+          createdAt: new Date().toISOString()
         };
         const monthKey = this.getMonthKey(expenseDate);
         if (!this.expenses[monthKey]) {
