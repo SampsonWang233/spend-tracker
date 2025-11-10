@@ -9,17 +9,35 @@ class ExpenseTracker {
     this.loading = false;
     this.userId = this.getUserId();
     
+    console.log('👤 Current userId:', this.userId);
+    console.log('💡 All devices using the same userId will share data');
+    
     // Initialize storage
     this.initStorage();
   }
 
   getUserId() {
-    // Generate or retrieve a unique user ID
+    // For personal use, use a fixed userId so all devices share the same data
+    // You can change this to a custom value if you want
     let userId = localStorage.getItem('expenseTracker_userId');
+    
     if (!userId) {
-      userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      // Use a fixed userId for personal expense tracking
+      // This ensures all your devices (desktop, mobile) see the same data
+      userId = 'personal';
       localStorage.setItem('expenseTracker_userId', userId);
+      console.log('📱 Using shared userId for cross-device sync:', userId);
     }
+    
+    // Allow user to set custom userId via URL parameter (optional)
+    const urlParams = new URLSearchParams(window.location.search);
+    const customUserId = urlParams.get('userId');
+    if (customUserId && customUserId.trim()) {
+      userId = customUserId.trim();
+      localStorage.setItem('expenseTracker_userId', userId);
+      console.log('🔑 Using custom userId from URL:', userId);
+    }
+    
     return userId;
   }
 
