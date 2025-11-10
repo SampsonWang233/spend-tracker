@@ -69,13 +69,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  expensesList.addEventListener('click', (event) => {
+  expensesList.addEventListener('click', async (event) => {
     const deleteButton = event.target.closest('[data-expense-id]');
     if (!deleteButton) return;
 
-    const expenseId = Number.parseInt(deleteButton.dataset.expenseId, 10);
-    if (!Number.isNaN(expenseId)) {
-      tracker.deleteExpense(expenseId);
+    const expenseId = deleteButton.dataset.expenseId;
+    if (expenseId) {
+      await tracker.deleteExpense(expenseId);
     }
   });
 

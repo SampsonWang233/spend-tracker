@@ -428,23 +428,46 @@ class ExpenseTracker {
   }
 
   async deleteExpense(expenseId) {
+    if (!expenseId) {
+      console.error('No expense ID provided for deletion');
+      return;
+    }
+
     const monthKey = this.getCurrentMonthKey();
     const existing = this.expenses[monthKey];
-    if (!existing) return;
+    if (!existing) {
+      console.warn('No expenses found for current month');
+      return;
+    }
 
     if (this.useFirebase && this.db) {
       try {
-        await this.db.collection('expenses').doc(expenseId).delete();
+        // Firebase IDs are strings, but we need to ensure we're using the correct ID
+        // The expenseId from the button should be the Firebase document ID
+        await this.db.collection('expenses').doc(String(expenseId)).delete();
+        console.log('✅ Expense deleted from Firebase:', expenseId);
         // The listener will update this.expenses automatically
         return;
       } catch (error) {
-        console.error('Error deleting expense from Firebase:', error);
-        // Fallback to localStorage
+        console.error('❌ Error deleting expense from Firebase:', error);
+        // If it's a permission error, switch to localStorage
+        if (error.code === 'permission-denied') {
+          console.warn('⚠️ Permission denied, switching to localStorage');
+          this.useFirebase = false;
+        } else {
+          // For other errors, fallback to localStorage
+        }
       }
     }
 
     // Use localStorage or fallback
-    this.expenses[monthKey] = existing.filter((expense) => expense.id !== expenseId);
+    // Handle both string and number IDs for compatibility
+    this.expenses[monthKey] = existing.filter((expense) => {
+      // Compare as both string and number to handle both Firebase (string) and localStorage (number) IDs
+      const expenseIdStr = String(expense.id);
+      const deleteIdStr = String(expenseId);
+      return expenseIdStr !== deleteIdStr;
+    });
 
     if (this.expenses[monthKey].length === 0) {
       delete this.expenses[monthKey];
@@ -452,6 +475,7 @@ class ExpenseTracker {
 
     this.saveExpenses();
     this.notify();
+    console.log('✅ Expense deleted from localStorage');
   }
 
   async clearCurrentMonth() {
