@@ -17,17 +17,9 @@ class ExpenseTracker {
   }
 
   getUserId() {
-    // For personal use, use a fixed userId so all devices share the same data
-    // You can change this to a custom value if you want
-    let userId = localStorage.getItem('expenseTracker_userId');
-    
-    if (!userId) {
-      // Use a fixed userId for personal expense tracking
-      // This ensures all your devices (desktop, mobile) see the same data
-      userId = 'personal';
-      localStorage.setItem('expenseTracker_userId', userId);
-      console.log('📱 Using shared userId for cross-device sync:', userId);
-    }
+    // For personal use, always use 'personal' as the default userId
+    // This ensures all devices (desktop, mobile) share the same data
+    let userId = 'personal';
     
     // Allow user to set custom userId via URL parameter (optional)
     const urlParams = new URLSearchParams(window.location.search);
@@ -36,6 +28,10 @@ class ExpenseTracker {
       userId = customUserId.trim();
       localStorage.setItem('expenseTracker_userId', userId);
       console.log('🔑 Using custom userId from URL:', userId);
+    } else {
+      // Always use 'personal' and update localStorage to ensure consistency
+      localStorage.setItem('expenseTracker_userId', userId);
+      console.log('📱 Using shared userId for cross-device sync:', userId);
     }
     
     return userId;
