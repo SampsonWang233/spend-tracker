@@ -3,79 +3,79 @@
     {
       "description": "Rent",
       "amount": 1950,
-      "category": "Housing",
+      "category": "housing",
       "dayOfMonth": 1
     },
     {
         "description": "Electricity Bill",
         "amount": 50,
-        "category": "Housing",
+        "category": "housing",
         "dayOfMonth": 1
     },
     {
         "description": "Wifi",
         "amount": 90,
-        "category": "Housing",
+        "category": "housing",
         "dayOfMonth": 1
     },
     {
         "description": "Mobile",
         "amount": 33,
-        "category": "Housing",
+        "category": "housing",
         "dayOfMonth": 1
     },
     {
       "description": "Car Insurance",
       "amount": 237,
-      "category": "Transport",
+      "category": "transport",
       "dayOfMonth": 1
     },
     {
       "description": "YMCA",
       "amount": 33,
-      "category": "Entertainment",
+      "category": "entertainment",
       "dayOfMonth": 1
     },
     {
         "description": "Youtube",
         "amount": 8,
-        "category": "Entertainment",
+        "category": "entertainment",
         "dayOfMonth": 1
       },
       {
         "description": "HBO",
         "amount": 5,
-        "category": "Entertainment",
+        "category": "entertainment",
         "dayOfMonth": 1
       },
       {
         "description": "Spotify",
         "amount": 6,
-        "category": "Entertainment",
+        "category": "entertainment",
         "dayOfMonth": 1
       },
       {
         "description": "Amazon",
         "amount": 7.5,
-        "category": "Entertainment",
+        "category": "entertainment",
         "dayOfMonth": 1
       },
       {
         "description": "IHG",
         "amount": 8.25,
-        "category": "Bills",
+        "category": "bills",
         "dayOfMonth": 1
       },
       {
         "description": "Hyatt",
         "amount": 8,
-        "category": "Bills",
+        "category": "bills",
         "dayOfMonth": 1
       },
       {
         "description": "EXCIS",
         "amount": 22.5,
-        "category": "Transport",
+        "category": "transport",
         "dayOfMonth": 1
       }
   ],

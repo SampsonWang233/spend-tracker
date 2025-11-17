@@ -515,6 +515,13 @@ class ExpenseTracker {
   }
 
   async loadFixedExpenses() {
+    // First, try to get from window object (loaded via script tag - works with file://)
+    if (window.fixedExpensesData && window.fixedExpensesData.fixedExpenses) {
+      console.log('✅ Loaded fixed expenses from JavaScript file');
+      return window.fixedExpensesData.fixedExpenses;
+    }
+
+    // Fallback: try to fetch JSON file (works with http/https)
     try {
       const response = await fetch('fixed-expenses.json');
       if (!response.ok) {
@@ -524,14 +531,17 @@ class ExpenseTracker {
       const data = await response.json();
       return data.fixedExpenses || [];
     } catch (error) {
-      console.warn('⚠️ Could not load fixed expenses:', error);
+      console.warn('⚠️ Could not load fixed expenses from JSON:', error);
+      console.warn('💡 Make sure fixed-expenses.js is loaded via script tag in your HTML');
       return null;
     }
   }
 
   async loadAndAddFixedExpenses() {
+    console.log('🔄 Starting to load fixed expenses...');
     const fixedExpenses = await this.loadFixedExpenses();
     if (!fixedExpenses || fixedExpenses.length === 0) {
+      console.warn('⚠️  No fixed expenses found or file could not be loaded');
       return;
     }
 
@@ -542,6 +552,8 @@ class ExpenseTracker {
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth();
 
+    console.log(`📅 Current date: ${now.toISOString().split('T')[0]}, Processing months from ${currentYear}-${String(currentMonth + 1).padStart(2, '0')} backwards`);
+
     // Check all months from the beginning of the current year to current month
     // Also check previous year's months
     for (let year = currentYear; year >= currentYear - 1; year--) {
@@ -551,6 +563,8 @@ class ExpenseTracker {
         await this.addFixedExpensesForMonth(fixedExpenses, year, month);
       }
     }
+    
+    console.log('✅ Finished processing fixed expenses');
   }
 
   async addFixedExpensesForMonth(fixedExpenses, year, month) {
@@ -566,6 +580,7 @@ class ExpenseTracker {
 
     let addedCount = 0;
     const today = new Date();
+    today.setHours(23, 59, 59, 999); // Set to end of day for comparison
     const targetDate = new Date(year, month, 1);
     
     // Only add fixed expenses for current or past months
@@ -573,36 +588,57 @@ class ExpenseTracker {
       return;
     }
 
+    console.log(`🔍 Checking fixed expenses for ${monthKey}...`);
+
     for (const fixedExpense of fixedExpenses) {
       // Skip if already added this month
       if (existingDescriptions.has(fixedExpense.description)) {
+        console.log(`⏭️  Skipping "${fixedExpense.description}" - already exists in ${monthKey}`);
         continue;
       }
+
+      // Normalize category to lowercase
+      const normalizedCategory = (fixedExpense.category || 'bills').toLowerCase();
 
       // Calculate the date for this expense (dayOfMonth of the target month)
       const maxDay = new Date(year, month + 1, 0).getDate(); // Last day of the month
       const dayOfMonth = Math.min(fixedExpense.dayOfMonth || 1, maxDay);
       const expenseDate = new Date(year, month, dayOfMonth);
+      expenseDate.setHours(0, 0, 0, 0); // Set to start of day
 
       // Only add if the expense date has passed or it's today
       if (expenseDate <= today) {
         const expenseData = {
           description: fixedExpense.description,
           amount: fixedExpense.amount,
-          category: fixedExpense.category || 'bills',
+          category: normalizedCategory,
           date: expenseDate,
           isFixedExpense: true // Mark as fixed expense
         };
 
+        console.log(`➕ Adding fixed expense: ${fixedExpense.description} (${expenseData.amount}) on ${expenseDate.toISOString().split('T')[0]}`);
         const success = await this.addExpense(expenseData);
         if (success) {
           addedCount++;
+        } else {
+          console.warn(`⚠️  Failed to add expense: ${fixedExpense.description}`);
         }
+      } else {
+        console.log(`⏳ Skipping "${fixedExpense.description}" - date ${expenseDate.toISOString().split('T')[0]} is in the future`);
       }
     }
 
     if (addedCount > 0) {
       console.log(`✅ Added ${addedCount} fixed expense(s) for ${monthKey}`);
+      // If using Firebase, reload expenses to ensure they're reflected
+      if (this.useFirebase && this.db) {
+        // Small delay to ensure Firebase has processed the writes
+        await new Promise(resolve => setTimeout(resolve, 500));
+        await this.loadExpenses();
+        this.notify();
+      }
+    } else {
+      console.log(`ℹ️  No new fixed expenses to add for ${monthKey}`);
     }
   }
 
