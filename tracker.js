@@ -54,6 +54,9 @@ class ExpenseTracker {
           // Migrate localStorage data to Firebase if it exists
           await this.migrateLocalStorageToFirebase();
           
+          // Load and add fixed expenses
+          await this.loadAndAddFixedExpenses();
+          
           this.setupFirebaseListener();
           this.notify();
           return;
@@ -72,6 +75,10 @@ class ExpenseTracker {
     this.useFirebase = false;
     this.expenses = this.loadExpensesFromLocal();
     console.log('📦 Using localStorage for data storage');
+    
+    // Load and add fixed expenses
+    await this.loadAndAddFixedExpenses();
+    
     this.notify();
   }
 
@@ -355,7 +362,7 @@ class ExpenseTracker {
       .sort((a, b) => new Date(b.year, b.month, 1) - new Date(a.year, a.month, 1));
   }
 
-  async addExpense({ description, amount, category, date }) {
+  async addExpense({ description, amount, category, date, isFixedExpense }) {
     const trimmedDescription = (description || '').trim();
     const numericAmount = parseFloat(amount);
 
@@ -371,6 +378,11 @@ class ExpenseTracker {
       date: expenseDate.toISOString(),
       userId: this.userId
     };
+
+    // Preserve isFixedExpense flag if provided
+    if (isFixedExpense) {
+      expenseData.isFixedExpense = true;
+    }
 
     // Add server timestamp only if using Firebase
     if (this.useFirebase && this.db && typeof firebase !== 'undefined') {
@@ -500,6 +512,98 @@ class ExpenseTracker {
     delete this.expenses[monthKey];
     this.saveExpenses();
     this.notify();
+  }
+
+  async loadFixedExpenses() {
+    try {
+      const response = await fetch('fixed-expenses.json');
+      if (!response.ok) {
+        console.warn('⚠️ fixed-expenses.json not found or not accessible');
+        return null;
+      }
+      const data = await response.json();
+      return data.fixedExpenses || [];
+    } catch (error) {
+      console.warn('⚠️ Could not load fixed expenses:', error);
+      return null;
+    }
+  }
+
+  async loadAndAddFixedExpenses() {
+    const fixedExpenses = await this.loadFixedExpenses();
+    if (!fixedExpenses || fixedExpenses.length === 0) {
+      return;
+    }
+
+    console.log(`📋 Loaded ${fixedExpenses.length} fixed expenses`);
+
+    // Get current date
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+
+    // Check all months from the beginning of the current year to current month
+    // Also check previous year's months
+    for (let year = currentYear; year >= currentYear - 1; year--) {
+      const startMonth = year === currentYear ? currentMonth : 11;
+      
+      for (let month = startMonth; month >= 0; month--) {
+        await this.addFixedExpensesForMonth(fixedExpenses, year, month);
+      }
+    }
+  }
+
+  async addFixedExpensesForMonth(fixedExpenses, year, month) {
+    const monthKey = this.getMonthKey(new Date(year, month, 1));
+    const monthExpenses = this.expenses[monthKey] || [];
+    
+    // Check which fixed expenses have already been added this month
+    const existingDescriptions = new Set(
+      monthExpenses
+        .filter(e => e.isFixedExpense)
+        .map(e => e.description)
+    );
+
+    let addedCount = 0;
+    const today = new Date();
+    const targetDate = new Date(year, month, 1);
+    
+    // Only add fixed expenses for current or past months
+    if (targetDate > today) {
+      return;
+    }
+
+    for (const fixedExpense of fixedExpenses) {
+      // Skip if already added this month
+      if (existingDescriptions.has(fixedExpense.description)) {
+        continue;
+      }
+
+      // Calculate the date for this expense (dayOfMonth of the target month)
+      const maxDay = new Date(year, month + 1, 0).getDate(); // Last day of the month
+      const dayOfMonth = Math.min(fixedExpense.dayOfMonth || 1, maxDay);
+      const expenseDate = new Date(year, month, dayOfMonth);
+
+      // Only add if the expense date has passed or it's today
+      if (expenseDate <= today) {
+        const expenseData = {
+          description: fixedExpense.description,
+          amount: fixedExpense.amount,
+          category: fixedExpense.category || 'bills',
+          date: expenseDate,
+          isFixedExpense: true // Mark as fixed expense
+        };
+
+        const success = await this.addExpense(expenseData);
+        if (success) {
+          addedCount++;
+        }
+      }
+    }
+
+    if (addedCount > 0) {
+      console.log(`✅ Added ${addedCount} fixed expense(s) for ${monthKey}`);
+    }
   }
 
   getState() {
