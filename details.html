@@ -4,20 +4,21 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#6366f1">
-    <title>My Spend Tracker · Details</title>
+    <title>My Spend Tracker · Add Expense</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="container details-page">
         <header class="primary-header">
             <div class="header-row">
-                <h1>Expense Details</h1>
+                <h1>Add Expense</h1>
                 <nav class="tab-nav" aria-label="Page navigation">
-                    <a href="index.html" id="navSummary" class="tab-link">Summary</a>
                     <a href="details.html" class="tab-link tab-active" aria-current="page">Add Expense</a>
+                    <a href="detail.html" id="navDetail" class="tab-link">Detail</a>
+                    <a href="index.html" id="navSummary" class="tab-link">Summary</a>
                 </nav>
             </div>
-            <p class="header-subtitle">Add, review, and manage each expense entry.</p>
+            <p class="header-subtitle">Add new expense entries quickly and easily.</p>
         </header>
 
         <main class="details-layout">
@@ -54,16 +55,6 @@
                     </div>
                     <button type="submit" class="btn btn-primary">Add Expense</button>
                 </form>
-            </section>
-
-            <section class="expenses-section">
-                <div class="section-header">
-                    <h2>Expenses</h2>
-                    <button id="clearMonth" class="btn btn-secondary">Clear Month</button>
-                </div>
-                <div id="expensesList" class="expenses-list">
-                    <p class="empty-state">No expenses yet. Add your first expense above!</p>
-                </div>
             </section>
         </main>
     </div>

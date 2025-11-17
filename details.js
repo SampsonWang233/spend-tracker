@@ -13,16 +13,6 @@ const MONTHS = [
   'December',
 ];
 
-const CATEGORY_LABELS = {
-  dining: 'Dining',
-  shopping: 'Shopping',
-  transport: 'Transport',
-  housing: 'Housing',
-  grocery: 'Grocery',
-  entertainment: 'Entertainment',
-  bills: 'Bills',
-};
-
 document.addEventListener('DOMContentLoaded', () => {
   const tracker = new window.ExpenseTracker();
 
@@ -31,10 +21,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const amountInput = document.getElementById('expenseAmount');
   const categorySelect = document.getElementById('expenseCategory');
   const dateInput = document.getElementById('expenseDate');
-  const expensesList = document.getElementById('expensesList');
-  const clearMonthBtn = document.getElementById('clearMonth');
   const navSummary = document.getElementById('navSummary');
-  const navBreakdown = document.querySelector('.tab-nav .tab-active');
+  const navDetail = document.getElementById('navDetail');
 
   expenseForm.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -60,29 +48,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  clearMonthBtn.addEventListener('click', async () => {
-    const state = tracker.getState();
-    const monthName = MONTHS[state.currentDate.getMonth()];
-    const confirmation = window.confirm(`Clear all expenses for ${monthName} ${state.currentDate.getFullYear()}?`);
-    if (confirmation) {
-      await tracker.clearCurrentMonth();
-    }
-  });
-
-  expensesList.addEventListener('click', async (event) => {
-    const deleteButton = event.target.closest('[data-expense-id]');
-    if (!deleteButton) return;
-
-    const expenseId = deleteButton.dataset.expenseId;
-    if (expenseId) {
-      await tracker.deleteExpense(expenseId);
-    }
-  });
 
   tracker.subscribe((state) => {
-    const { currentDate, expenses, monthKey } = state;
+    const { currentDate, monthKey } = state;
 
-    renderExpenses(expenses);
     refreshDateInput();
     updateNavLinks(monthKey);
     updatePageTitle(currentDate);
@@ -90,40 +59,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   applyInitialMonthFromQuery();
 
-  function renderExpenses(expenses = []) {
-    if (!Array.isArray(expenses) || expenses.length === 0) {
-      expensesList.innerHTML = '<p class="empty-state">No expenses yet. Add your first expense above!</p>';
-      return;
-    }
-
-    expensesList.innerHTML = expenses
-      .map((expense) => {
-        const date = new Date(expense.date);
-        const formattedDate = date.toLocaleDateString(undefined, {
-          month: 'short',
-          day: 'numeric',
-          year: 'numeric',
-        });
-        const label = CATEGORY_LABELS[expense.category] || capitalize(expense.category);
-
-        return `
-          <div class="expense-item">
-            <div class="expense-item-info">
-              <div class="expense-item-description">${escapeHtml(expense.description)}</div>
-              <div class="expense-item-meta">
-                <span class="category-badge category-${expense.category}">${label}</span>
-                <span>${formattedDate}</span>
-              </div>
-            </div>
-            <div class="expense-item-actions">
-              <span class="expense-item-amount">${formatCurrency(expense.amount)}</span>
-              <button class="expense-item-delete" data-expense-id="${expense.id}" aria-label="Delete expense">×</button>
-            </div>
-          </div>
-        `;
-      })
-      .join('');
-  }
 
   function refreshDateInput() {
     const { currentDate } = tracker.getState();
@@ -160,21 +95,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 1500);
   }
 
-  function formatCurrency(value) {
-    return `$${Number(value || 0).toFixed(2)}`;
-  }
-
-  function capitalize(text) {
-    if (!text) return '';
-    return text.charAt(0).toUpperCase() + text.slice(1);
-  }
-
-  function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  }
-
   function updateNavLinks(monthKey) {
     if (!monthKey) return;
 
@@ -182,15 +102,15 @@ document.addEventListener('DOMContentLoaded', () => {
       navSummary.href = `index.html?month=${monthKey}`;
     }
 
-    if (navBreakdown) {
-      navBreakdown.href = `details.html?month=${monthKey}`;
+    if (navDetail) {
+      navDetail.href = `detail.html?month=${monthKey}`;
     }
   }
 
   function updatePageTitle(date) {
     if (!(date instanceof Date)) return;
     const monthName = MONTHS[date.getMonth()];
-    document.title = `My Spend Tracker · ${monthName} ${date.getFullYear()}`;
+    document.title = `My Spend Tracker · Add Expense · ${monthName} ${date.getFullYear()}`;
   }
 
   function applyInitialMonthFromQuery() {

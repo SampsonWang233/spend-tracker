@@ -1,3 +1,9 @@
+// Helper function to get month abbreviation
+function getMonthAbbr(monthIndex) {
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return monthNames[monthIndex] || 'Unknown';
+}
+
 // Shared ExpenseTracker class used across summary and detail pages
 class ExpenseTracker {
   constructor() {
@@ -640,6 +646,26 @@ class ExpenseTracker {
     } else {
       console.log(`ℹ️  No new fixed expenses to add for ${monthKey}`);
     }
+  }
+
+  getMonthlyTotals(limit = 12) {
+    // Get monthly totals for the last N months
+    const availableMonths = this.getAvailableMonths();
+    const monthlyTotals = [];
+    
+    // Get totals for available months
+    for (const monthInfo of availableMonths.slice(0, limit)) {
+      const summary = this.getMonthlySummary(new Date(monthInfo.year, monthInfo.month, 1));
+      monthlyTotals.push({
+        monthKey: monthInfo.key,
+        year: monthInfo.year,
+        month: monthInfo.month,
+        total: summary.totalSpent,
+        label: `${getMonthAbbr(monthInfo.month)} ${monthInfo.year}`
+      });
+    }
+    
+    return monthlyTotals;
   }
 
   getState() {
