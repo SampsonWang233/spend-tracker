@@ -14,13 +14,13 @@ const MONTHS = [
 ];
 
 const CATEGORY_LABELS = {
-  food: 'Food & Dining',
-  transport: 'Transport',
+  dining: 'Dining',
   shopping: 'Shopping',
-  bills: 'Bills & Utilities',
+  transport: 'Transport',
+  housing: 'Housing',
+  grocery: 'Grocery',
   entertainment: 'Entertainment',
-  health: 'Health & Fitness',
-  other: 'Other',
+  bills: 'Bills',
 };
 
 document.addEventListener('DOMContentLoaded', () => {

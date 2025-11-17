@@ -119,7 +119,7 @@ class ExpenseTracker {
             const expenseData = {
               description: expense.description,
               amount: expense.amount,
-              category: expense.category || 'other',
+              category: expense.category || 'bills',
               date: expense.date,
               userId: this.userId
             };
@@ -316,7 +316,7 @@ class ExpenseTracker {
 
   getCategoryTotals(expenses) {
     return expenses.reduce((totals, expense) => {
-      const category = expense.category || 'other';
+      const category = expense.category || 'bills';
       if (!totals[category]) {
         totals[category] = 0;
       }
@@ -367,7 +367,7 @@ class ExpenseTracker {
     const expenseData = {
       description: trimmedDescription,
       amount: numericAmount,
-      category: category || 'other',
+      category: category || 'bills',
       date: expenseDate.toISOString(),
       userId: this.userId
     };
