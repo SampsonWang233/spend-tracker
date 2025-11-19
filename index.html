@@ -1,98 +1,13 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#6366f1">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#6366f1" />
     <title>My Spend Tracker</title>
-    <link rel="stylesheet" href="styles.css">
-</head>
-<body>
-    <div class="container summary-page">
-        <header class="primary-header">
-            <div class="header-row">
-                <h1>💰 My Spend Tracker</h1>
-                <nav class="tab-nav" aria-label="Page navigation">
-                    <a href="details.html" id="navAddExpense" class="tab-link">Add Expense</a>
-                    <a href="detail.html" id="navDetail" class="tab-link">Detail</a>
-                    <a href="index.html" class="tab-link tab-active" aria-current="page">Summary</a>
-                </nav>
-            </div>
-            <p class="header-subtitle">Quick overview of your monthly spending at a glance.</p>
-        </header>
-
-        <main class="summary-layout">
-            <section class="month-selector-card">
-                <div class="section-header">
-                    <h2>Current Month</h2>
-                    <div class="month-selector">
-                        <select id="monthSelect" class="month-select" aria-label="Select month"></select>
-                        <select id="yearSelect" class="year-select" aria-label="Select year"></select>
-                    </div>
-                </div>
-                <div class="summary-grid">
-                    <div class="summary-card">
-                        <span class="label">Total Spent</span>
-                        <span id="totalSpent" class="value">$0.00</span>
-                    </div>
-                    <div class="summary-card">
-                        <span class="label">Expenses</span>
-                        <span id="expenseCount" class="value">0</span>
-                    </div>
-                    <div class="summary-card">
-                        <span class="label">Average per Expense</span>
-                        <span id="averageExpense" class="value">$0.00</span>
-                    </div>
-                    <div class="summary-card">
-                        <span class="label">Top Category</span>
-                        <span id="topCategory" class="value">—</span>
-                    </div>
-                </div>
-            </section>
-
-            <section class="category-section">
-                <div class="section-header">
-                    <h2>Category Breakdown</h2>
-                </div>
-                <div id="categoryList" class="category-list">
-                    <p class="empty-state">No spending recorded this month.</p>
-                </div>
-            </section>
-
-            <section class="charts-section">
-                <div class="chart-container">
-                    <div class="section-header">
-                        <h2>Category Distribution</h2>
-                    </div>
-                    <canvas id="pieChart"></canvas>
-                </div>
-                <div class="chart-container">
-                    <div class="section-header">
-                        <h2>Monthly Comparison</h2>
-                    </div>
-                    <canvas id="barChart"></canvas>
-                </div>
-            </section>
-
-        </main>
-    </div>
-
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-    
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-    
-    <!-- Firebase Config (add your credentials here) -->
-    <script src="firebase-config.js"></script>
-    
-    <!-- Fixed Expenses (load before tracker.js) -->
-    <script src="fixed-expenses.js"></script>
-    
-    <!-- App Scripts -->
-    <script src="tracker.js"></script>
-    <script src="summary.js"></script>
-</body>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
 </html>
-

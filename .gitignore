@@ -14,6 +14,6 @@ desktop.ini
 *.log
 npm-debug.log*
 
-# Optional: Uncomment if you add npm packages later
-# node_modules/
+node_modules/
+dist/
 

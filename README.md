@@ -1,120 +1,84 @@
 # My Spend Tracker 💰
 
-A simple, mobile-friendly web application to track your personal monthly expenses.
+A mobile-friendly React single-page application for tracking monthly spending. The original static HTML/JS build has been replaced with a modern Vite + React stack while keeping the UI/UX identical.
 
 ## Features
 
-- 📱 Mobile-first responsive design
-- 📅 Monthly expense tracking with quick month switching
-- 🧾 Two-page workflow: monthly summary + detailed ledger
-- 🏷️ Category-based expense organization and breakdown
-- 💾 Local data storage (no server required)
-- ✨ Clean and intuitive interface
+- ⚛️ React 18 SPA with client-side routing (`/`, `/add`, `/detail`)
+- 📊 Realtime summary cards and Chart.js visualizations
+- 🧾 Quick ledger management with filtering and month-level bulk actions
+- 📅 Month selector synced to the URL query string (shareable links)
+- ☁️ Optional Firebase Firestore sync + automatic localStorage fallback
+- 💸 Fixed expenses auto-injected each month via `src/data/fixed-expenses.json`
 
-## Deployment Options
+## Tech Stack
 
-### Option 1: GitHub Pages (Recommended - Free & Easy)
+- [React 18](https://react.dev/) + [React Router 6](https://reactrouter.com/)
+- [Vite 5](https://vitejs.dev/) for dev server & builds
+- [Chart.js 4](https://www.chartjs.org/) for visualizations
+- [Firebase v9 compat](https://firebase.google.com/docs/web/modular-upgrade) for Firestore (optional)
 
-1. **Create a GitHub repository:**
-   - Go to [github.com](https://github.com) and create a new repository
-   - Name it something like `spend-tracker` or `my-expenses`
-
-2. **Push your code:**
-   ```bash
-   git add .
-   git commit -m "Initial commit: Expense tracker app"
-   git branch -M main
-   git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git
-   git push -u origin main
-   ```
-
-3. **Enable GitHub Pages:**
-   - Go to your repository on GitHub
-   - Click **Settings** → **Pages**
-   - Under **Source**, select **main** branch and **/ (root)** folder
-   - Click **Save**
-   - Your site will be live at: `https://YOUR_USERNAME.github.io/YOUR_REPO_NAME/`
-
-4. **Access from your phone:**
-   - Open the URL in your phone's browser
-   - Add it to your home screen for quick access
-
-### Option 2: Netlify (Drag & Drop - Easiest)
-
-1. **Go to [netlify.com](https://netlify.com)** and sign up (free)
-
-2. **Deploy:**
-   - Drag and drop this entire folder onto the Netlify dashboard
-   - Or connect your GitHub repository for automatic deployments
-
-3. **Access your site:**
-   - Netlify will give you a URL like `your-app-name.netlify.app`
-   - You can customize the domain name in settings
-
-### Option 3: Vercel (Also Easy)
-
-1. **Go to [vercel.com](https://vercel.com)** and sign up (free)
-
-2. **Deploy:**
-   - Install Vercel CLI: `npm i -g vercel`
-   - Run `vercel` in this folder and follow the prompts
-   - Or connect your GitHub repository through the dashboard
-
-3. **Access your site:**
-   - Vercel will provide a URL automatically
-
-### Option 4: Local Server (For Testing)
-
-If you want to test locally before deploying:
+## Getting Started
 
 ```bash
-# Using Python (if installed)
-python -m http.server 8000
-
-# Or using Node.js http-server
-npx http-server -p 8000
+npm install
+npm run dev
 ```
 
-Then open `http://localhost:8000` in your browser.
+- The dev server runs at `http://localhost:5173` by default.
+- The Month selector and tab links keep the `?month=YYYY-MM` query string so you can bookmark/share the currently selected month.
+
+### Production Build
+
+```bash
+npm run build
+npm run preview # optional local preview of the dist bundle
+```
+
+Deploy the `dist` folder to Netlify, Vercel, GitHub Pages, etc. (Most hosts support Vite builds out of the box.)
 
 ## Usage
 
-1. Open `index.html` for the **Summary** view
-   - Switch months with the arrows or dropdowns
-   - Review totals, average per expense, top category, and recent items
-   - Tap **View Details** to jump into the ledger page
-2. Open `details.html` for the **Detail** view
-   - Add expenses with description, amount, category, and date
-   - Browse the full list of expenses for the selected month
-   - Delete individual expenses (× button) or clear the entire month
+- **Summary (`/`)** – switch months, review totals, category breakdown, and charts.
+- **Add Expense (`/add`)** – add a description, amount, category, and date for the selected month. Form defaults adjust automatically when you change months.
+- **Detail (`/detail`)** – filter by category, delete single expenses, or clear the entire month. Category totals display when a filter is active.
+
+Navigation tabs preserve the current month query string so moving between views keeps you in context.
 
 ## Data Storage
 
-The app supports two storage options:
+The data layer mirrors the legacy `ExpenseTracker` logic:
 
-### Option 1: Firebase Firestore (Recommended for Cloud Storage)
-- ✅ **Cloud Storage**: Data stored in Firebase cloud database
-- ✅ **Sync Across Devices**: Access your expenses from any device
-- ✅ **Automatic Backup**: Your data is automatically backed up
-- ✅ **Real-time Updates**: Changes sync instantly across devices
-- 📖 **Setup**: See [FIREBASE_SETUP.md](FIREBASE_SETUP.md) for detailed instructions
+1. **Firebase Firestore (optional)**  
+   - Configure credentials in `src/firebase/config.js` (same values as before).  
+   - When valid credentials are present the app auto-initializes Firebase, syncs expenses, and migrates existing localStorage data.
 
-### Option 2: localStorage (Default)
-- ✅ Your data stays private (never leaves your device)
-- ✅ Works offline
-- ⚠️ Data is tied to your browser/device
-- ⚠️ Clearing browser data will delete your expenses
+2. **localStorage (default fallback)**  
+   - Works entirely offline.  
+   - Data is device/browser specific. Clearing storage removes expenses.
 
-**Note**: If Firebase is not configured, the app automatically uses localStorage. No configuration needed for basic usage!
+Fixed monthly charges live in `src/data/fixed-expenses.json`. Update that file to change recurring entries; they are auto-added for each month (current + past year) if missing.
 
-## Files
+## Deployment Notes
 
-- `index.html` - Summary dashboard
-- `details.html` - Expense management ledger
-- `styles.css` - Styling and responsive design
-- `tracker.js` - Shared data layer and state manager (supports Firebase & localStorage)
-- `summary.js` - Summary page interactions
-- `details.js` - Detail page interactions
-- `firebase-config.js` - Firebase configuration (optional, for cloud storage)
-- `FIREBASE_SETUP.md` - Complete Firebase setup guide
+- **Netlify/Vercel**: Connect the repo, set build command to `npm run build`, output directory `dist`.
+- **GitHub Pages**: Build locally, push the `dist` folder to `gh-pages`, or use an action such as `peaceiris/actions-gh-pages`.
+- **Other static hosts**: Any service that can serve the built `dist` directory will work.
+
+## Key Files
+
+- `vite.config.js` – Vite + React config
+- `src/main.jsx` – entry point + router/provider wiring
+- `src/App.jsx` – route definitions
+- `src/providers/ExpenseTrackerProvider.jsx` – React context + state sync
+- `src/lib/ExpenseTracker.js` – shared data layer (Firebase/localStorage logic)
+- `src/pages/*.jsx` – Summary, Add Expense, and Detail screens
+- `src/styles.css` – shared styling (ported from the legacy build)
+- `src/data/fixed-expenses.json` – editable recurring expenses
+- `src/firebase/config.js` – Firebase credentials + compat initialization
+- `FIREBASE_SETUP.md` – original walkthrough for provisioning Firebase (still valid)
+
+## Legacy Docs
+
+Older Markdown references (e.g., `MOBILE_FIREBASE_DEBUG.md`) are still relevant for troubleshooting even though the runtime is now React/Vite. The UI/UX remains the same—only the implementation changed.
 
