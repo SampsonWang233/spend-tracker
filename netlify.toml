@@ -1,6 +1,7 @@
-# Netlify configuration for easy deployment
+# Netlify configuration for Vite React app
 [build]
-  publish = "."
+  command = "npm run build"
+  publish = "dist"
 
 [[redirects]]
   from = "/*"
