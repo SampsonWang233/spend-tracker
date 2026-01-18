@@ -39,6 +39,8 @@ class ExpenseTracker {
     this.db = null;
     this.loading = true;
     this.userId = this.getUserId();
+    this.addingFixedExpenses = false;
+    this.processedMonths = new Set();
 
     this.initStorage();
   }
@@ -548,21 +550,40 @@ class ExpenseTracker {
   }
 
   async loadAndAddFixedExpenses() {
-    const fixedExpenses = await this.loadFixedExpenses();
-    if (!fixedExpenses || fixedExpenses.length === 0) {
+    // Prevent concurrent execution
+    if (this.addingFixedExpenses) {
       return;
     }
 
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth();
+    this.addingFixedExpenses = true;
+    try {
+      // Clear processed months at the start of each execution
+      // This allows re-processing if expenses were cleared
+      this.processedMonths.clear();
 
-    for (let year = currentYear; year >= currentYear - 1; year -= 1) {
-      const startMonth = year === currentYear ? currentMonth : 11;
-
-      for (let month = startMonth; month >= 0; month -= 1) {
-        await this.addFixedExpensesForMonth(fixedExpenses, year, month);
+      const fixedExpenses = await this.loadFixedExpenses();
+      if (!fixedExpenses || fixedExpenses.length === 0) {
+        return;
       }
+
+      // Reload expenses to ensure we have the latest data before checking for duplicates
+      if (this.useFirebase && this.db) {
+        await this.loadExpenses();
+      }
+
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth();
+
+      for (let year = currentYear; year >= currentYear - 1; year -= 1) {
+        const startMonth = year === currentYear ? currentMonth : 11;
+
+        for (let month = startMonth; month >= 0; month -= 1) {
+          await this.addFixedExpensesForMonth(fixedExpenses, year, month);
+        }
+      }
+    } finally {
+      this.addingFixedExpenses = false;
     }
   }
 
@@ -588,12 +609,30 @@ class ExpenseTracker {
 
   async addFixedExpensesForMonth(fixedExpenses, year, month) {
     const monthKey = this.getMonthKey(new Date(year, month, 1));
+    
+    // Create a unique processing key to prevent duplicate processing
+    const processingKey = `fixed-${monthKey}`;
+    if (this.processedMonths.has(processingKey)) {
+      return;
+    }
+
+    // Ensure we have the latest expenses data for this month
+    // For Firebase, reload to get latest data before checking
+    if (this.useFirebase && this.db) {
+      await this.loadExpenses();
+    }
+    
     const monthExpenses = this.expenses[monthKey] || [];
 
-    const existingDescriptions = new Set(
+    // Use a combination of date and description to check for duplicates
+    // This is more robust than just description
+    const existingFixedExpenseKeys = new Set(
       monthExpenses
         .filter((e) => e.isFixedExpense)
-        .map((e) => e.description)
+        .map((e) => {
+          const expenseDate = new Date(e.date);
+          return `${e.description}|${expenseDate.getFullYear()}-${expenseDate.getMonth()}-${expenseDate.getDate()}`;
+        })
     );
 
     const today = new Date();
@@ -601,21 +640,26 @@ class ExpenseTracker {
     const targetDate = new Date(year, month, 1);
 
     if (targetDate > today) {
+      this.processedMonths.add(processingKey);
       return;
     }
 
     let addedCount = 0;
 
     for (const fixedExpense of fixedExpenses) {
-      if (existingDescriptions.has(fixedExpense.description)) {
-        continue;
-      }
-
       const normalizedCategory = (fixedExpense.category || 'bills').toLowerCase();
       const maxDay = new Date(year, month + 1, 0).getDate();
       const dayOfMonth = Math.min(fixedExpense.dayOfMonth || 1, maxDay);
       const expenseDate = new Date(year, month, dayOfMonth);
       expenseDate.setHours(0, 0, 0, 0);
+
+      // Create unique key for this fixed expense
+      const expenseKey = `${fixedExpense.description}|${year}-${month}-${dayOfMonth}`;
+
+      // Skip if this exact expense already exists
+      if (existingFixedExpenseKeys.has(expenseKey)) {
+        continue;
+      }
 
       if (expenseDate <= today) {
         const expenseData = {
@@ -633,7 +677,11 @@ class ExpenseTracker {
       }
     }
 
+    // Mark this month as processed
+    this.processedMonths.add(processingKey);
+
     if (addedCount > 0 && this.useFirebase && this.db) {
+      // Reload to get the updated expenses with IDs from Firebase
       await new Promise((resolve) => setTimeout(resolve, 500));
       await this.loadExpenses();
       this.notify();
