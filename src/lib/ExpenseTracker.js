@@ -78,6 +78,7 @@ class ExpenseTracker {
             await this.loadExpenses();
             await this.migrateLocalStorageToFirebase();
             await this.loadAndAddFixedExpenses();
+            await this.syncFixedExpensesInCurrentMonth();
             this.setupFirebaseListener();
             this.loading = false;
             this.notify();
@@ -92,6 +93,7 @@ class ExpenseTracker {
     this.useFirebase = false;
     this.expenses = this.loadExpensesFromLocal();
     await this.loadAndAddFixedExpenses();
+    await this.syncFixedExpensesInCurrentMonth();
     this.loading = false;
     this.notify();
   }
@@ -455,6 +457,65 @@ class ExpenseTracker {
     this.notify();
   }
 
+  async updateExpense(expenseId, updates) {
+    if (!expenseId) {
+      return false;
+    }
+
+    const monthKey = this.getCurrentMonthKey();
+    const existing = this.expenses[monthKey];
+    if (!existing) {
+      return false;
+    }
+
+    const expenseIndex = existing.findIndex((expense) => String(expense.id) === String(expenseId));
+    if (expenseIndex === -1) {
+      return false;
+    }
+
+    const expense = existing[expenseIndex];
+    const updatedExpense = { ...expense, ...updates };
+
+    if (this.useFirebase && this.db) {
+      try {
+        await this.db.collection('expenses').doc(String(expenseId)).update(updates);
+        existing[expenseIndex] = updatedExpense;
+        await this.loadExpenses();
+        this.notify();
+        return true;
+      } catch (error) {
+        console.error('Error updating expense in Firebase:', error);
+        if (error.code === 'permission-denied') {
+          this.useFirebase = false;
+        }
+        return false;
+      }
+    }
+
+    existing[expenseIndex] = updatedExpense;
+    await this.saveExpenses();
+    this.notify();
+    return true;
+  }
+
+  async updateFixedExpenseInCurrentMonth(description, newAmount) {
+    const monthKey = this.getCurrentMonthKey();
+    const existing = this.expenses[monthKey];
+    if (!existing) {
+      return false;
+    }
+
+    const fixedExpense = existing.find(
+      (expense) => expense.isFixedExpense && expense.description === description
+    );
+
+    if (fixedExpense) {
+      return await this.updateExpense(fixedExpense.id, { amount: newAmount });
+    }
+
+    return false;
+  }
+
   async clearCurrentMonth() {
     const monthKey = this.getCurrentMonthKey();
     const existing = this.expenses[monthKey];
@@ -501,6 +562,26 @@ class ExpenseTracker {
 
       for (let month = startMonth; month >= 0; month -= 1) {
         await this.addFixedExpensesForMonth(fixedExpenses, year, month);
+      }
+    }
+  }
+
+  async syncFixedExpensesInCurrentMonth() {
+    const fixedExpenses = await this.loadFixedExpenses();
+    if (!fixedExpenses || fixedExpenses.length === 0) {
+      return;
+    }
+
+    const monthKey = this.getCurrentMonthKey();
+    const existing = this.expenses[monthKey] || [];
+
+    for (const fixedExpense of fixedExpenses) {
+      const existingFixedExpense = existing.find(
+        (expense) => expense.isFixedExpense && expense.description === fixedExpense.description
+      );
+
+      if (existingFixedExpense && existingFixedExpense.amount !== fixedExpense.amount) {
+        await this.updateExpense(existingFixedExpense.id, { amount: fixedExpense.amount });
       }
     }
   }
