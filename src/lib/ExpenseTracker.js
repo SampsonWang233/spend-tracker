@@ -10,6 +10,12 @@ import {
 const STORAGE_KEY = 'expenses';
 const USER_ID_KEY = 'expenseTracker_userId';
 const MIGRATION_FLAG_KEY = 'expenseTracker_migratedToFirebase';
+const FIXED_BACKFILL_KEY = 'expenseTracker_fixedBackfill';
+const FIXED_EXPENSE_LOCK_KEY = 'expenseTracker_fixedExpenseLock';
+
+const FIXED_EXPENSE_ALIASES = {
+  'Electricity Bill': 'Electric'
+};
 
 function getLocalStorage() {
   if (typeof window === 'undefined' || typeof window.localStorage === 'undefined') {
@@ -28,6 +34,24 @@ function getWindowSearch() {
 function getMonthAbbr(monthIndex) {
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   return monthNames[monthIndex] || 'Unknown';
+}
+
+function normalizeFixedDescription(description) {
+  return FIXED_EXPENSE_ALIASES[description] || description;
+}
+
+function getFixedExpenseKey(description, year, month, dayOfMonth) {
+  const normalized = normalizeFixedDescription(description);
+  return `${normalized}|${year}-${month}-${dayOfMonth}`;
+}
+
+function getExpenseDateParts(dateValue) {
+  const expenseDate = new Date(dateValue);
+  return {
+    year: expenseDate.getFullYear(),
+    month: expenseDate.getMonth(),
+    day: expenseDate.getDate()
+  };
 }
 
 class ExpenseTracker {
@@ -464,17 +488,23 @@ class ExpenseTracker {
       return false;
     }
 
-    const monthKey = this.getCurrentMonthKey();
+    let monthKey = null;
+    let expenseIndex = -1;
+
+    for (const [key, monthExpenses] of Object.entries(this.expenses)) {
+      const index = monthExpenses.findIndex((expense) => String(expense.id) === String(expenseId));
+      if (index !== -1) {
+        monthKey = key;
+        expenseIndex = index;
+        break;
+      }
+    }
+
+    if (monthKey === null || expenseIndex === -1) {
+      return false;
+    }
+
     const existing = this.expenses[monthKey];
-    if (!existing) {
-      return false;
-    }
-
-    const expenseIndex = existing.findIndex((expense) => String(expense.id) === String(expenseId));
-    if (expenseIndex === -1) {
-      return false;
-    }
-
     const expense = existing[expenseIndex];
     const updatedExpense = { ...expense, ...updates };
 
@@ -507,12 +537,15 @@ class ExpenseTracker {
       return false;
     }
 
-    const fixedExpense = existing.find(
-      (expense) => expense.isFixedExpense && expense.description === description
-    );
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const fixedExpense = { description, dayOfMonth: 1 };
+    const matchingExpense = this.findMatchingFixedExpense(existing, fixedExpense, year, month, 1)
+      || existing.find((expense) => normalizeFixedDescription(expense.description) === normalizeFixedDescription(description));
 
-    if (fixedExpense) {
-      return await this.updateExpense(fixedExpense.id, { amount: newAmount });
+    if (matchingExpense) {
+      return await this.updateExpense(matchingExpense.id, { amount: newAmount });
     }
 
     return false;
@@ -531,6 +564,7 @@ class ExpenseTracker {
           batch.delete(docRef);
         });
         await batch.commit();
+        this.clearFixedBackfillForMonth(monthKey);
         return;
       } catch (error) {
         console.error('Error clearing month from Firebase:', error);
@@ -538,8 +572,98 @@ class ExpenseTracker {
     }
 
     delete this.expenses[monthKey];
+    this.clearFixedBackfillForMonth(monthKey);
     await this.saveExpenses();
     this.notify();
+  }
+
+  getFixedBackfillState() {
+    const storage = getLocalStorage();
+    if (!storage) {
+      return {};
+    }
+
+    try {
+      const parsed = JSON.parse(storage.getItem(FIXED_BACKFILL_KEY) || '{}');
+      return typeof parsed === 'object' && parsed !== null ? parsed : {};
+    } catch (error) {
+      console.warn('Unable to read fixed expense backfill state', error);
+      return {};
+    }
+  }
+
+  getFixedBackfillKey(monthKey) {
+    return `${this.userId}:${monthKey}`;
+  }
+
+  isFixedBackfillComplete(monthKey) {
+    return Boolean(this.getFixedBackfillState()[this.getFixedBackfillKey(monthKey)]);
+  }
+
+  markFixedBackfillComplete(monthKey) {
+    const storage = getLocalStorage();
+    if (!storage) {
+      return;
+    }
+
+    const state = this.getFixedBackfillState();
+    state[this.getFixedBackfillKey(monthKey)] = true;
+    storage.setItem(FIXED_BACKFILL_KEY, JSON.stringify(state));
+  }
+
+  clearFixedBackfillForMonth(monthKey) {
+    const storage = getLocalStorage();
+    if (!storage) {
+      return;
+    }
+
+    const state = this.getFixedBackfillState();
+    delete state[this.getFixedBackfillKey(monthKey)];
+    storage.setItem(FIXED_BACKFILL_KEY, JSON.stringify(state));
+  }
+
+  acquireFixedExpenseLock() {
+    const storage = getLocalStorage();
+    if (!storage) {
+      return true;
+    }
+
+    if (storage.getItem(FIXED_EXPENSE_LOCK_KEY) === '1') {
+      return false;
+    }
+
+    storage.setItem(FIXED_EXPENSE_LOCK_KEY, '1');
+    return true;
+  }
+
+  releaseFixedExpenseLock() {
+    getLocalStorage()?.removeItem(FIXED_EXPENSE_LOCK_KEY);
+  }
+
+  buildExistingFixedExpenseKeys(monthExpenses) {
+    const keys = new Set();
+
+    for (const expense of monthExpenses) {
+      const { year, month, day } = getExpenseDateParts(expense.date);
+      keys.add(getFixedExpenseKey(expense.description, year, month, day));
+      keys.add(`${expense.description}|${year}-${month}-${day}`);
+    }
+
+    return keys;
+  }
+
+  findMatchingFixedExpense(monthExpenses, fixedExpense, year, month, dayOfMonth) {
+    const targetDescription = normalizeFixedDescription(fixedExpense.description);
+
+    return monthExpenses.find((expense) => {
+      const { year: expenseYear, month: expenseMonth, day: expenseDay } = getExpenseDateParts(expense.date);
+      const expenseDescription = normalizeFixedDescription(expense.description);
+
+      return expenseDescription === targetDescription
+        && expenseYear === year
+        && expenseMonth === month
+        && expenseDay === dayOfMonth;
+    });
   }
 
   async loadFixedExpenses() {
@@ -550,15 +674,12 @@ class ExpenseTracker {
   }
 
   async loadAndAddFixedExpenses() {
-    // Prevent concurrent execution
-    if (this.addingFixedExpenses) {
+    if (this.addingFixedExpenses || !this.acquireFixedExpenseLock()) {
       return;
     }
 
     this.addingFixedExpenses = true;
     try {
-      // Clear processed months at the start of each execution
-      // This allows re-processing if expenses were cleared
       this.processedMonths.clear();
 
       const fixedExpenses = await this.loadFixedExpenses();
@@ -566,7 +687,6 @@ class ExpenseTracker {
         return;
       }
 
-      // Reload expenses to ensure we have the latest data before checking for duplicates
       if (this.useFirebase && this.db) {
         await this.loadExpenses();
       }
@@ -579,11 +699,17 @@ class ExpenseTracker {
         const startMonth = year === currentYear ? currentMonth : 11;
 
         for (let month = startMonth; month >= 0; month -= 1) {
+          const monthKey = this.getMonthKey(new Date(year, month, 1));
+          if (this.isFixedBackfillComplete(monthKey)) {
+            continue;
+          }
+
           await this.addFixedExpensesForMonth(fixedExpenses, year, month);
         }
       }
     } finally {
       this.addingFixedExpenses = false;
+      this.releaseFixedExpenseLock();
     }
   }
 
@@ -595,45 +721,50 @@ class ExpenseTracker {
 
     const monthKey = this.getCurrentMonthKey();
     const existing = this.expenses[monthKey] || [];
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
 
     for (const fixedExpense of fixedExpenses) {
-      const existingFixedExpense = existing.find(
-        (expense) => expense.isFixedExpense && expense.description === fixedExpense.description
-      );
+      const maxDay = new Date(year, month + 1, 0).getDate();
+      const dayOfMonth = Math.min(fixedExpense.dayOfMonth || 1, maxDay);
+      const matchingExpense = this.findMatchingFixedExpense(existing, fixedExpense, year, month, dayOfMonth);
 
-      if (existingFixedExpense && existingFixedExpense.amount !== fixedExpense.amount) {
-        await this.updateExpense(existingFixedExpense.id, { amount: fixedExpense.amount });
+      if (!matchingExpense) {
+        continue;
+      }
+
+      const updates = {};
+      if (matchingExpense.description !== fixedExpense.description) {
+        updates.description = fixedExpense.description;
+      }
+      if (matchingExpense.amount !== fixedExpense.amount) {
+        updates.amount = fixedExpense.amount;
+      }
+      if (!matchingExpense.isFixedExpense) {
+        updates.isFixedExpense = true;
+      }
+
+      if (Object.keys(updates).length > 0) {
+        await this.updateExpense(matchingExpense.id, updates);
       }
     }
   }
 
   async addFixedExpensesForMonth(fixedExpenses, year, month) {
     const monthKey = this.getMonthKey(new Date(year, month, 1));
-    
-    // Create a unique processing key to prevent duplicate processing
+
     const processingKey = `fixed-${monthKey}`;
     if (this.processedMonths.has(processingKey)) {
       return;
     }
 
-    // Ensure we have the latest expenses data for this month
-    // For Firebase, reload to get latest data before checking
     if (this.useFirebase && this.db) {
       await this.loadExpenses();
     }
-    
-    const monthExpenses = this.expenses[monthKey] || [];
 
-    // Use a combination of date and description to check for duplicates
-    // This is more robust than just description
-    const existingFixedExpenseKeys = new Set(
-      monthExpenses
-        .filter((e) => e.isFixedExpense)
-        .map((e) => {
-          const expenseDate = new Date(e.date);
-          return `${e.description}|${expenseDate.getFullYear()}-${expenseDate.getMonth()}-${expenseDate.getDate()}`;
-        })
-    );
+    const monthExpenses = this.expenses[monthKey] || [];
+    const existingFixedExpenseKeys = this.buildExistingFixedExpenseKeys(monthExpenses);
 
     const today = new Date();
     today.setHours(23, 59, 59, 999);
@@ -641,6 +772,7 @@ class ExpenseTracker {
 
     if (targetDate > today) {
       this.processedMonths.add(processingKey);
+      this.markFixedBackfillComplete(monthKey);
       return;
     }
 
@@ -653,10 +785,27 @@ class ExpenseTracker {
       const expenseDate = new Date(year, month, dayOfMonth);
       expenseDate.setHours(0, 0, 0, 0);
 
-      // Create unique key for this fixed expense
-      const expenseKey = `${fixedExpense.description}|${year}-${month}-${dayOfMonth}`;
+      const expenseKey = getFixedExpenseKey(fixedExpense.description, year, month, dayOfMonth);
+      const matchingExpense = this.findMatchingFixedExpense(monthExpenses, fixedExpense, year, month, dayOfMonth);
 
-      // Skip if this exact expense already exists
+      if (matchingExpense) {
+        const updates = {};
+        if (matchingExpense.description !== fixedExpense.description) {
+          updates.description = fixedExpense.description;
+        }
+        if (matchingExpense.amount !== fixedExpense.amount) {
+          updates.amount = fixedExpense.amount;
+        }
+        if (!matchingExpense.isFixedExpense) {
+          updates.isFixedExpense = true;
+        }
+
+        if (Object.keys(updates).length > 0) {
+          await this.updateExpense(matchingExpense.id, updates);
+        }
+        continue;
+      }
+
       if (existingFixedExpenseKeys.has(expenseKey)) {
         continue;
       }
@@ -673,15 +822,15 @@ class ExpenseTracker {
         const success = await this.addExpense(expenseData);
         if (success) {
           addedCount += 1;
+          existingFixedExpenseKeys.add(expenseKey);
         }
       }
     }
 
-    // Mark this month as processed
     this.processedMonths.add(processingKey);
+    this.markFixedBackfillComplete(monthKey);
 
     if (addedCount > 0 && this.useFirebase && this.db) {
-      // Reload to get the updated expenses with IDs from Firebase
       await new Promise((resolve) => setTimeout(resolve, 500));
       await this.loadExpenses();
       this.notify();
