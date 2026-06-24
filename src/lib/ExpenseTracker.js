@@ -11,11 +11,12 @@ const STORAGE_KEY = 'expenses';
 const USER_ID_KEY = 'expenseTracker_userId';
 const MIGRATION_FLAG_KEY = 'expenseTracker_migratedToFirebase';
 const FIXED_BACKFILL_KEY = 'expenseTracker_fixedBackfill';
-const FIXED_EXPENSE_LOCK_KEY = 'expenseTracker_fixedExpenseLock';
 
 const FIXED_EXPENSE_ALIASES = {
   'Electricity Bill': 'Electric'
 };
+
+let fixedExpenseInitialization = null;
 
 function getLocalStorage() {
   if (typeof window === 'undefined' || typeof window.localStorage === 'undefined') {
@@ -564,7 +565,7 @@ class ExpenseTracker {
           batch.delete(docRef);
         });
         await batch.commit();
-        this.clearFixedBackfillForMonth(monthKey);
+        this.clearMonthFixedExpenseLoaded(monthKey);
         return;
       } catch (error) {
         console.error('Error clearing month from Firebase:', error);
@@ -572,7 +573,7 @@ class ExpenseTracker {
     }
 
     delete this.expenses[monthKey];
-    this.clearFixedBackfillForMonth(monthKey);
+    this.clearMonthFixedExpenseLoaded(monthKey);
     await this.saveExpenses();
     this.notify();
   }
@@ -592,52 +593,37 @@ class ExpenseTracker {
     }
   }
 
-  getFixedBackfillKey(monthKey) {
+  getFixedBackfillEntryKey(monthKey) {
     return `${this.userId}:${monthKey}`;
   }
 
-  isFixedBackfillComplete(monthKey) {
-    return Boolean(this.getFixedBackfillState()[this.getFixedBackfillKey(monthKey)]);
+  isMonthFixedExpenseLoaded(monthKey) {
+    return Boolean(this.getFixedBackfillState()[this.getFixedBackfillEntryKey(monthKey)]?.loaded);
   }
 
-  markFixedBackfillComplete(monthKey) {
+  markMonthFixedExpenseLoaded(monthKey) {
     const storage = getLocalStorage();
     if (!storage) {
       return;
     }
 
     const state = this.getFixedBackfillState();
-    state[this.getFixedBackfillKey(monthKey)] = true;
+    state[this.getFixedBackfillEntryKey(monthKey)] = {
+      loaded: true,
+      loadedAt: new Date().toISOString()
+    };
     storage.setItem(FIXED_BACKFILL_KEY, JSON.stringify(state));
   }
 
-  clearFixedBackfillForMonth(monthKey) {
+  clearMonthFixedExpenseLoaded(monthKey) {
     const storage = getLocalStorage();
     if (!storage) {
       return;
     }
 
     const state = this.getFixedBackfillState();
-    delete state[this.getFixedBackfillKey(monthKey)];
+    delete state[this.getFixedBackfillEntryKey(monthKey)];
     storage.setItem(FIXED_BACKFILL_KEY, JSON.stringify(state));
-  }
-
-  acquireFixedExpenseLock() {
-    const storage = getLocalStorage();
-    if (!storage) {
-      return true;
-    }
-
-    if (storage.getItem(FIXED_EXPENSE_LOCK_KEY) === '1') {
-      return false;
-    }
-
-    storage.setItem(FIXED_EXPENSE_LOCK_KEY, '1');
-    return true;
-  }
-
-  releaseFixedExpenseLock() {
-    getLocalStorage()?.removeItem(FIXED_EXPENSE_LOCK_KEY);
   }
 
   buildExistingFixedExpenseKeys(monthExpenses) {
@@ -673,10 +659,49 @@ class ExpenseTracker {
     return [];
   }
 
+  hasAllFixedExpensesForMonth(monthExpenses, fixedExpenses, year, month, today) {
+    const targetDate = new Date(year, month, 1);
+    if (targetDate > today) {
+      return true;
+    }
+
+    for (const fixedExpense of fixedExpenses) {
+      const maxDay = new Date(year, month + 1, 0).getDate();
+      const dayOfMonth = Math.min(fixedExpense.dayOfMonth || 1, maxDay);
+      const expenseDate = new Date(year, month, dayOfMonth);
+      expenseDate.setHours(0, 0, 0, 0);
+
+      if (expenseDate > today) {
+        continue;
+      }
+
+      if (!this.findMatchingFixedExpense(monthExpenses, fixedExpense, year, month, dayOfMonth)) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
   async loadAndAddFixedExpenses() {
-    if (this.addingFixedExpenses || !this.acquireFixedExpenseLock()) {
+    if (fixedExpenseInitialization) {
+      return fixedExpenseInitialization;
+    }
+
+    fixedExpenseInitialization = this.runFixedExpenseBackfill();
+    try {
+      await fixedExpenseInitialization;
+    } finally {
+      fixedExpenseInitialization = null;
+    }
+  }
+
+  async runFixedExpenseBackfill() {
+    if (this.addingFixedExpenses) {
       return;
     }
+
+    getLocalStorage()?.removeItem('expenseTracker_fixedExpenseLock');
 
     this.addingFixedExpenses = true;
     try {
@@ -691,6 +716,8 @@ class ExpenseTracker {
         await this.loadExpenses();
       }
 
+      const today = new Date();
+      today.setHours(23, 59, 59, 999);
       const now = new Date();
       const currentYear = now.getFullYear();
       const currentMonth = now.getMonth();
@@ -700,16 +727,31 @@ class ExpenseTracker {
 
         for (let month = startMonth; month >= 0; month -= 1) {
           const monthKey = this.getMonthKey(new Date(year, month, 1));
-          if (this.isFixedBackfillComplete(monthKey)) {
+
+          if (this.isMonthFixedExpenseLoaded(monthKey)) {
+            continue;
+          }
+
+          const monthExpenses = this.expenses[monthKey] || [];
+          if (this.hasAllFixedExpensesForMonth(monthExpenses, fixedExpenses, year, month, today)) {
+            this.markMonthFixedExpenseLoaded(monthKey);
             continue;
           }
 
           await this.addFixedExpensesForMonth(fixedExpenses, year, month);
+
+          if (this.useFirebase && this.db) {
+            await this.loadExpenses();
+          }
+
+          const updatedMonthExpenses = this.expenses[monthKey] || [];
+          if (this.hasAllFixedExpensesForMonth(updatedMonthExpenses, fixedExpenses, year, month, today)) {
+            this.markMonthFixedExpenseLoaded(monthKey);
+          }
         }
       }
     } finally {
       this.addingFixedExpenses = false;
-      this.releaseFixedExpenseLock();
     }
   }
 
@@ -772,7 +814,6 @@ class ExpenseTracker {
 
     if (targetDate > today) {
       this.processedMonths.add(processingKey);
-      this.markFixedBackfillComplete(monthKey);
       return;
     }
 
@@ -828,7 +869,6 @@ class ExpenseTracker {
     }
 
     this.processedMonths.add(processingKey);
-    this.markFixedBackfillComplete(monthKey);
 
     if (addedCount > 0 && this.useFirebase && this.db) {
       await new Promise((resolve) => setTimeout(resolve, 500));
